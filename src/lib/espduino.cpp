@@ -249,23 +249,29 @@ boolean ESP::waitReturn()
 {
   return waitReturn(ESP_TIMEOUT);
 }
+
+#define SLIP_START 0x7E
+#define SLIP_END   0x7F
+#define SLIP_REPL  0x7D
+#define SLIP_ESC(x) (x ^ 0x20)
+
 void ESP::process()
 {
   char value;
   while(_serial->available()) {
     value = _serial->read();
     switch(value){
-    case 0x7D:
+    case SLIP_REPL:
       _proto.isEsc = 1;
       break;
 
-    case 0x7E:
+    case SLIP_START:
       _proto.dataLen = 0;
       _proto.isEsc = 0;
       _proto.isBegin = 1;
       break;
 
-    case 0x7F:
+    case SLIP_END:
       protoCompletedCb();
       _proto.isBegin = 0;
       break;
@@ -278,7 +284,7 @@ void ESP::process()
         break;
       }
       if(_proto.isEsc){
-        value ^= 0x20;
+        value = SLIP_ESC(value);
         _proto.isEsc = 0;
       }
 

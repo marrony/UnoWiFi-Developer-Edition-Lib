@@ -156,22 +156,22 @@ CiaoData responseREAD(){
 
 	return ciao_data;
 }
-CiaoData requestPOST(const char* hostname, String data){
-	rest.begin(hostname);
+CiaoData requestPOST(const char* hostname, uint16_t port, String data){
+	rest.begin(hostname, port, false);
 	//delay(1000);	fix
 	//esp.process();
 	rest.post((const char*) data.c_str(),0);
 	return responseREAD();
 }
-CiaoData requestGET(const char* hostname, String data){
+CiaoData requestGET(const char* hostname, uint16_t port, String data){
 
-	rest.begin(hostname);
+	rest.begin(hostname, port, false);
 	//delay(1000);   fix
 	//esp.process();
 	rest.get((const char*) data.c_str());
 	return responseREAD();
 }
-CiaoData PassThroughRead(const char* connector, const char* hostname, String data, const char* method){
+CiaoData PassThroughRead(const char* connector, const char* hostname, uint16_t port, String data, const char* method){
 
 
 	//short mode = 0;
@@ -179,10 +179,10 @@ CiaoData PassThroughRead(const char* connector, const char* hostname, String dat
 	if (!strcmp(connector, "rest")){
 		//mode = 0;
 		if (!strcmp(method, "GET")){
-			return requestGET(hostname, data);
+			return requestGET(hostname, port, data);
 		}
 		else if (!strcmp(method, "POST")){
-			return requestPOST(hostname, data);
+			return requestPOST(hostname, port, data);
 		}
 		else{
 			CiaoData ciao_data;
@@ -223,16 +223,16 @@ CiaoData PassThroughRead(const char* connector, const char* hostname, String dat
 	}
 }
 
-CiaoData PassThroughWrite(const char* connector, const char* hostname, String data, const char* method){
+CiaoData PassThroughWrite(const char* connector, const char* hostname, uint16_t port, String data, const char* method){
 
 	//short mode = 0;
 	if (!strcmp(connector, "rest")){
 		//mode = 0;
 		if (!strcmp(method, "GET")){
-			return requestGET(hostname, data);
+			return requestGET(hostname, port, data);
 		}
 		else if (!strcmp(method, "POST")){
-			return requestPOST(hostname, data);
+			return requestPOST(hostname, port, data);
 		}
 		else{
 			CiaoData ciao_data;
@@ -262,19 +262,95 @@ CiaoData PassThroughWrite(const char* connector, const char* hostname, String da
 }
 
 CiaoData CiaoClass::read(const char* connector, const char* hostname, const char* data, const char* method) {
-	return PassThroughRead(connector, hostname, data, method);
+	return PassThroughRead(connector, hostname, 80, data, method);
 }
 
 CiaoData CiaoClass::write(const char* connector, const char* hostname, const char* data, const char* method) {
-	return PassThroughWrite(connector, hostname, data, method);
+	return PassThroughWrite(connector, hostname, 80, data, method);
 }
 
 CiaoData CiaoClass::read( const char* connector, const char* hostname, String data, String method){
-	return PassThroughRead(connector, hostname, data.c_str(), method.c_str());
+	return PassThroughRead(connector, hostname, 80, data.c_str(), method.c_str());
 }
 
 CiaoData CiaoClass::write( const char* connector, const char* hostname, String data, String method){
-	return PassThroughWrite(connector, hostname, data.c_str(), method.c_str());
+	return PassThroughWrite(connector, hostname, 80, data.c_str(), method.c_str());
+}
+
+bool _resp = true;
+void _timeCb(void* data) {
+  //Serial.println("callback from timeCb");
+
+	RESPONSE res(data);
+
+  //Serial.println("argc: " + String(res.getArgc()));
+	if(res.getArgc() == 4) {
+    int32_t day, hours, minutes, seconds;
+
+		res.popArgs((uint8_t*)&day, 4);
+		res.popArgs((uint8_t*)&hours, 4);
+		res.popArgs((uint8_t*)&minutes, 4);
+		res.popArgs((uint8_t*)&seconds, 4);
+
+    static int8_t hoursOn[24] = {
+      1, //00:00
+      0, //01:00
+      0, //02:00
+      0, //03:00
+      0, //04:00
+      0, //05:00
+      0, //06:00
+      0, //07:00
+      0, //08:00
+      0, //09:00
+      0, //10:00
+      0, //11:00
+      0, //12:00
+      0, //13:00
+      0, //14:00
+      0, //15:00
+      0, //16:00
+      0, //17:00
+      0, //18:00
+      1, //19:00
+      1, //20:00
+      1, //21:00
+      1, //22:00
+      1, //23:00
+    };
+
+    int on = hoursOn[hours];
+    digitalWrite(13, !on);
+    //digitalWrite(12, 1);
+
+#if 1
+    Serial.print(day);
+    Serial.print(' ');
+    Serial.print(hours);
+    Serial.print(':');
+    Serial.print(minutes);
+    Serial.print(':');
+    Serial.print(seconds);
+    Serial.print(" light is ");
+    Serial.println(on);
+#endif
+  } else {
+    Serial.println("wrong response");
+  }
+
+  _resp = true;
+}
+
+void ArduinoWifiClass::getTime() {
+  timeCb.attach(&_timeCb);
+
+  uint16_t crc = esp.request(CMD_GET_TIME, (uint32_t)&timeCb, 0, 0);
+  esp.request(crc);
+
+  _resp = false;
+  uint32_t wait = millis();
+  while(_resp == false && (millis() - wait < 1000))
+    esp.process();
 }
 
 CiaoClass Ciao;

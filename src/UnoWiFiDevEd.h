@@ -23,6 +23,8 @@ class ArduinoWifiClass : public WifiData
 		boolean connected();
 		void connect(char* , char*);
 		
+		void getTime();
+    FP<void, void*> timeCb;
 };
 
 class CiaoClass : public WifiData
